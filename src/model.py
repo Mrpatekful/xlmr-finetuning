@@ -24,6 +24,9 @@ from os.path import (
     abspath, exists)
 
 
+PROJECT_DIR = join(abspath(dirname(__file__)), '..')
+
+
 def create_model(xlmr, num_labels, cfg):
     """
     Creates the pretrained initalized model.
@@ -66,8 +69,7 @@ def create_pretrained(model_type, force_download=False):
     """
     Downloads and creates the pretrained assets.
     """
-    project_dir = join(abspath(dirname(__file__)), '..')
-    cache_dir = join(project_dir, '.cache')
+    cache_dir = join(PROJECT_DIR, '.cache')
 
     os.makedirs(cache_dir, exist_ok=True)
 
