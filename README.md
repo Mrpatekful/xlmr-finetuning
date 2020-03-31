@@ -6,10 +6,9 @@ Named entity recognition with XLM-RoBERTa *[Conneau et al. (2019)](https://arxiv
 
 ## Training
 
-It is convenient to use *[Google Colaboratory](https://colab.research.google.com/notebooks/welcome.ipynb)* or *[Kaggle kernel](https://www.kaggle.com/kernels)* as these platforms provide strong GPU-s with half-precision training support. Training XLM-RoBERTa with base configuration on Hungarian Newswire Texts can be performed by the following commands ( assuming the current directory is entity-recognition/ ).
+It is convenient to use *[Google Colaboratory](https://colab.research.google.com/notebooks/welcome.ipynb)* or *[Kaggle kernel](https://www.kaggle.com/kernels)* as these platforms provide strong GPU-s with half-precision training support. Training XLM-RoBERTa with base configuration on Hungarian Newswire Texts can be performed by the following commands ( assuming the current directory is entity-recognition/ ). Checkout the below colab link for easily training and evaluating the model.
 
-> NOTE: An example google colaboratory training is available [here](https://gist.github.com/Mrpatekful/64f61f1237cb9866d4a6e85e9ea726af#file-named_entity_recognition-ipynb).
-
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/gist/Mrpatekful/64f61f1237cb9866d4a6e85e9ea726af/named_entity_recognition.ipynb)
 ```bash
 # downloading the .ner formated corpora at transforming
 # it to .jsonl format into data/business folder and extracting
