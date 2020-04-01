@@ -21,9 +21,9 @@ from os.path import (
     join, dirname,
     abspath)
 
-PROJECT_PATH = join(abspath(dirname(__file__)), '..')
-if PROJECT_PATH not in sys.path:
-    sys.path.append(PROJECT_PATH)
+PROJECT_DIR = join(abspath(dirname(__file__)), '..')
+if PROJECT_DIR not in sys.path:
+    sys.path.append(PROJECT_DIR)
 
 from src.data import encode_example
 

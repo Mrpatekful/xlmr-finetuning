@@ -26,9 +26,9 @@ from os.path import (
     join, dirname,
     abspath, exists)
 
-PROJECT_PATH = join(abspath(dirname(__file__)), '..')
-if PROJECT_PATH not in sys.path:
-    sys.path.append(PROJECT_PATH)
+PROJECT_DIR = join(abspath(dirname(__file__)), '..')
+if PROJECT_DIR not in sys.path:
+    sys.path.append(PROJECT_DIR)
 
 from src.model import (
     create_model,
@@ -173,7 +173,7 @@ def main(cfg):
         fh.write('\n\n'.join(outputs))
 
     command = '{} < {}'.format(
-        join(PROJECT_PATH, 'scripts', 'conlleval'),
+        join(PROJECT_DIR, 'scripts', 'conlleval'),
         output_path)
 
     result = subprocess.check_output(

@@ -21,16 +21,16 @@ from os.path import (
     join, dirname,
     abspath, exists)
 
-PROJECT_PATH = join(abspath(dirname(__file__)), '..')
-SERVING_PATH = join(PROJECT_PATH, 'src', 'serving')
+PROJECT_DIR = join(abspath(dirname(__file__)), '..')
+SERVING_DIR = join(PROJECT_DIR, 'src', 'serving')
 # local path must be in sys so protobuf imports
 # can read local directory
 
-if PROJECT_PATH not in sys.path:
-    sys.path.append(PROJECT_PATH)
+if PROJECT_DIR not in sys.path:
+    sys.path.append(PROJECT_DIR)
 
-if SERVING_PATH not in sys.path:
-    sys.path.append(SERVING_PATH)
+if SERVING_DIR not in sys.path:
+    sys.path.append(SERVING_DIR)
 
 from src.data import (
     encode_example, decode_example)
