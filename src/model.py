@@ -112,6 +112,34 @@ def download(model_type, cache_dir):
     os.remove(download_path)
 
 
+def load_weights(model, xlmr):
+    """
+    Loads the weights of the provided model.
+    """
+    pretrained_state = \
+        xlmr.model.decoder.sentence_encoder.state_dict()
+
+    loaded_state = {}
+
+    for key in model.state_dict():
+        if 'in_proj' in key:
+            # torch multihead attention implementation
+            # stores the qkv parameters as a single
+            # parameter
+            from_key = re.sub(
+                r'in_proj_(.*)', r'{}_proj.\1', key)
+            
+            loaded_state[key] = torch.cat([
+                pretrained_state[from_key.format(s)]
+                for s in ['q', 'k', 'v']
+            ], dim=0)
+
+        else:
+            loaded_state[key] = pretrained_state[key]
+
+    model.load_state_dict(loaded_state)
+
+
 class PositionEmbedding(torch.nn.Embedding):
     """
     Position embedding for xlmr model.
@@ -261,34 +289,6 @@ class EncoderLayer(torch.nn.Module):
         inputs = self.final_layer_norm(inputs)
 
         return inputs, attn_weights
-
-
-def load_weights(model, xlmr):
-    """
-    Loads the weights of the provided model.
-    """
-    pretrained_state = \
-        xlmr.model.decoder.sentence_encoder.state_dict()
-
-    loaded_state = {}
-
-    for key in model.state_dict():
-        if 'in_proj' in key:
-            # torch multihead attention implementation
-            # stores the qkv parameters as a single
-            # parameter
-            from_key = re.sub(
-                r'in_proj_(.*)', r'{}_proj.\1', key)
-            
-            loaded_state[key] = torch.cat([
-                pretrained_state[from_key.format(s)]
-                for s in ['q', 'k', 'v']
-            ], dim=0)
-
-        else:
-            loaded_state[key] = pretrained_state[key]
-
-    model.load_state_dict(loaded_state)
 
 
 if __name__ == '__main__':

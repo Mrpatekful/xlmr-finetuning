@@ -12,4 +12,4 @@ fastapi
 uvicorn
 nltk
 httpx
-hydra-core
+hydra-core==0.11.3
