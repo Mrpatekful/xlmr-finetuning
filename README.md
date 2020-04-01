@@ -59,5 +59,5 @@ sudo docker run -d -v /your/path/to/model:/your/path/to/model -p 9001:8001 mcr.m
 Or simply use the convenience script.
 
 ```bash
-./scripts/serve_onnx_runtime.sh
+./scripts/serve_onnx_runtime.sh /your/abs/path/to/model/xlmr.base.onnx
 ```

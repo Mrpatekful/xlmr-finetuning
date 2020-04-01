@@ -40,20 +40,20 @@ def create_model(xlmr, num_labels, cfg):
     else:
         from torch.nn.modules import LayerNorm
 
-    args = xlmr.model.args
+    model_cfg = xlmr.model.args
 
-    args.layer_drop_p = cfg.layer_drop_p
-    args.vocab_size = len(xlmr.task.dictionary)
-    args.padding_idx = xlmr.task.dictionary.pad()
+    model_cfg.layer_drop_p = cfg.layer_drop_p
+    model_cfg.vocab_size = len(xlmr.task.dictionary)
+    model_cfg.padding_idx = xlmr.task.dictionary.pad()
 
-    encoder = Encoder(args, LayerNorm)
+    encoder = Encoder(model_cfg, LayerNorm)
 
     # initializing the encoder part of the classifier
     # from the pretrained xlmr model
     load_weights(encoder, xlmr)
 
     output = torch.nn.Linear(
-        encoder.args.encoder_embed_dim,
+        encoder.cfg.encoder_embed_dim,
         num_labels)
 
     output.weight.data.normal_(mean=0.0, std=0.02)
@@ -180,31 +180,31 @@ class Encoder(torch.nn.Module):
     Implements the transformer encoder.
     """
 
-    def __init__(self, args, layer_norm):
+    def __init__(self, cfg, layer_norm):
         super().__init__()
 
-        self.args = args
+        self.cfg = cfg
 
         self.embed_tokens = torch.nn.Embedding(
-            args.vocab_size,
-            args.encoder_embed_dim,
-            self.args.padding_idx)
+            cfg.vocab_size,
+            cfg.encoder_embed_dim,
+            cfg.padding_idx)
 
         self.embed_positions = PositionEmbedding(
-            args.max_positions,
-            args.encoder_embed_dim,
-            self.args.padding_idx)
+            cfg.max_positions,
+            cfg.encoder_embed_dim,
+            cfg.padding_idx)
 
         self.layers = torch.nn.ModuleList([
-            EncoderLayer(args, layer_norm)
-            for _ in range(args.encoder_layers)
+            EncoderLayer(cfg, layer_norm)
+            for _ in range(cfg.encoder_layers)
         ])
 
         self.emb_layer_norm = layer_norm(
-            args.encoder_embed_dim)
+            cfg.encoder_embed_dim)
 
     def forward(self, inputs):
-        attn_mask = inputs.eq(self.args.padding_idx)
+        attn_mask = inputs.eq(self.cfg.padding_idx)
 
         embeds = self.embed_tokens(inputs)
         embeds += self.embed_positions(inputs)
@@ -231,34 +231,34 @@ class EncoderLayer(torch.nn.Module):
     Implements the transformer encoder layer.
     """
 
-    def __init__(self, args, layer_norm):
+    def __init__(self, cfg, layer_norm):
         super().__init__()
 
         self.self_attn = torch.nn.MultiheadAttention(
-            args.encoder_embed_dim,
-            args.encoder_attention_heads,
+            cfg.encoder_embed_dim,
+            cfg.encoder_attention_heads,
             dropout=0.1)
 
         self.activation_fn = get_activation_fn(
-            args.activation_fn)
+            cfg.activation_fn)
 
         # layer norm associated with the self
         # attention layer
         self.self_attn_layer_norm = layer_norm(
-            args.encoder_embed_dim)
+            cfg.encoder_embed_dim)
 
         self.fc1 = torch.nn.Linear(
-            args.encoder_embed_dim,
-            args.encoder_ffn_embed_dim)
+            cfg.encoder_embed_dim,
+            cfg.encoder_ffn_embed_dim)
 
         self.fc2 = torch.nn.Linear(
-            args.encoder_ffn_embed_dim,
-            args.encoder_embed_dim)
+            cfg.encoder_ffn_embed_dim,
+            cfg.encoder_embed_dim)
 
         # layer norm associated with the 
         # position wise feed-forward NN
         self.final_layer_norm = layer_norm(
-            args.encoder_embed_dim)
+            cfg.encoder_embed_dim)
 
     def forward(self, inputs, attn_mask):
         residual = inputs
@@ -294,11 +294,11 @@ class EncoderLayer(torch.nn.Module):
 if __name__ == '__main__':
     xlmr = create_pretrained('xlmr.base')
 
-    args = xlmr.model.args
-    args.padding_idx = xlmr.task.dictionary.pad()
-    args.vocab_size = len(xlmr.task.dictionary)
+    model_cfg = xlmr.model.args
+    model_cfg.padding_idx = xlmr.task.dictionary.pad()
+    model_cfg.vocab_size = len(xlmr.task.dictionary)
 
-    encoder = Encoder(args, torch.nn.LayerNorm)
+    encoder = Encoder(model_cfg, torch.nn.LayerNorm)
 
     load_weights(encoder, xlmr)
 

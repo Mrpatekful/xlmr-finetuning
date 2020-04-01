@@ -19,6 +19,8 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 import tensorflow as tf
 
+from tqdm import tqdm
+
 from os.path import (
     join, dirname,
     exists, basename,
@@ -425,6 +427,12 @@ def create_dataset(cfg, xlmr, label2id):
             join(cfg.data_dir, 'train.jsonl'),
             join(cfg.data_dir, 'valid.jsonl')
         ]
+
+        splits = tqdm(
+            splits, 
+            desc='Converting to tfrecord',
+            leave=False
+        )
 
         train, valid = [
             transform_split(
