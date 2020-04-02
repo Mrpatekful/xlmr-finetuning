@@ -95,7 +95,7 @@ def main(cfg):
         id2label=id2label)
 
     model = create_model(xlmr, len(label2id), cfg)
-    model = model.to(device)
+    model.to(device)
 
     state_dict = torch.load(
         cfg.ckpt_path, map_location=device)
