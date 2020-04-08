@@ -147,7 +147,7 @@ def encode_example(tokens, labels, xlmr, label2id):
     return input_ids, label_ids
 
 
-def decode_example(token_ids, label_ids, xlmr, id2label):
+def decode_example(input_ids, label_ids, xlmr, id2label):
     """
     Convert the id examples to text.
     """
@@ -161,7 +161,7 @@ def decode_example(token_ids, label_ids, xlmr, id2label):
         text = xlmr.decode(torch.tensor(token).long())
         return text.replace(' ', '')
 
-    for token_id in token_ids:
+    for token_id in input_ids:
         if token_id == xlmr.task.dictionary.pad(): break
 
         token_ids.append(token_id)
