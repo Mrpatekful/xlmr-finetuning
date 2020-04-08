@@ -150,7 +150,7 @@ async def predict(query: Query):
     ]
 
     _, preds = decode_example(
-        token_ids=input_ids, label_ids=pred_ids,
+        input_ids, pred_ids,
         xlmr=xlmr, id2label=id2label)
 
     return {'preds': list(zip(tokens, preds))}
