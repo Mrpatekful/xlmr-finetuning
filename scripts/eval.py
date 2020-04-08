@@ -151,14 +151,10 @@ def main(cfg):
                 ]
 
                 tokens, labels = decode_fn(
-                    token_ids=token_list,
-                    label_ids=label_list
-                )
+                    token_list, label_list)
     
                 _, preds = decode_fn(
-                    token_ids=token_list,
-                    label_ids=pred_list
-                )
+                    token_list, pred_list)
     
                 results.append((tokens, labels, preds))
 
