@@ -150,15 +150,15 @@ def main(cfg):
                     zip(pred_list, label_list)
                 ]
 
-                tokens, labels = decode_fn({
-                    'token_ids': token_list,
-                    'label_ids': label_list
-                })
+                tokens, labels = decode_fn(
+                    token_ids=token_list,
+                    label_ids=label_list
+                )
     
-                _, preds = decode_fn({
-                    'token_ids': token_list,
-                    'label_ids': pred_list
-                })
+                _, preds = decode_fn(
+                    token_ids=token_list,
+                    label_ids=pred_list
+                )
     
                 results.append((tokens, labels, preds))
 

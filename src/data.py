@@ -124,14 +124,13 @@ def transform_split(cfg, file_name, xlmr, label2id):
     return tfrecord_paths, sum(sizes)
 
 
-def encode_example(example, xlmr, label2id):
+def encode_example(tokens, labels, xlmr, label2id):
     """
     Converts the text examples to ids.
     """
     input_ids, label_ids = [], []
 
-    merged = list(
-        zip(example['tokens'], example['labels']))
+    merged = list(zip(tokens, labels))
 
     for token, label in merged:
         ids = xlmr.encode(token)[1:-1].tolist()
@@ -148,7 +147,7 @@ def encode_example(example, xlmr, label2id):
     return input_ids, label_ids
 
 
-def decode_example(example, xlmr, id2label):
+def decode_example(token_ids, label_ids, xlmr, id2label):
     """
     Convert the id examples to text.
     """
@@ -162,14 +161,13 @@ def decode_example(example, xlmr, id2label):
         text = xlmr.decode(torch.tensor(token).long())
         return text.replace(' ', '')
 
-    for token_id in example['token_ids']:
+    for token_id in token_ids:
         if token_id == xlmr.task.dictionary.pad(): break
 
         token_ids.append(token_id)
 
     # last item is the eos token so skipping it
-    merged = list(zip(
-        token_ids[:-1], example['label_ids']))
+    merged = list(zip(token_ids[:-1], label_ids))
 
     init_token, init_label = merged[1]
     init_label = id2label[init_label]
@@ -203,7 +201,8 @@ def write_tfrecord(examples, encode_fn, file_name):
         """
         Creates a feature list from a document.
         """
-        input_ids, label_ids = encode_fn(example)
+        input_ids, label_ids = encode_fn(
+            example['tokens'], example['labels'])
 
         features = {
             'input_ids': int64_feature(input_ids),
@@ -321,7 +320,8 @@ def create_jsonl_loader(
         Generator for converted examples.
         """
         for example in generate_examples(data_path):
-            input_ids, label_ids = encode_fn(example)
+            input_ids, label_ids = encode_fn(
+                example['tokens'], example['labels'])
 
             yield {
                 'input_ids': input_ids,
