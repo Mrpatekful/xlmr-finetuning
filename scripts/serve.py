@@ -89,7 +89,7 @@ async def predict(query: Query):
     labels = ['O'] * len(tokens)
 
     input_ids, label_ids = encode_example(
-        {'tokens': tokens, 'labels': labels},
+        tokens=tokens, labels=labels,
         xlmr=xlmr, label2id=label2id)
 
     input_array = np.array(input_ids, dtype=np.int64)
@@ -150,7 +150,7 @@ async def predict(query: Query):
     ]
 
     _, preds = decode_example(
-        {'token_ids': input_ids, 'label_ids': pred_ids},
+        token_ids=input_ids, label_ids=pred_ids,
         xlmr=xlmr, id2label=id2label)
 
     return {'preds': list(zip(tokens, preds))}
