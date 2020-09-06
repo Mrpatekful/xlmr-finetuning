@@ -128,10 +128,9 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-data/*
-!data/download_conll2003.py
-!data/download_szegedner.py
-!data/ner2jsonl.py
+scripts/*
+!scripts/download_conll2003.py
+!scripts/download_szegedner.py
 
 outputs/
 

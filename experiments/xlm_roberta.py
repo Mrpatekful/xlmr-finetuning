@@ -18,6 +18,8 @@ import tensorflow as tf
 
 PROJECT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..")
 
+NO_LABEL = -1
+
 
 class Batch(typing.NamedTuple):
     input_ids: torch.Tensor
@@ -32,7 +34,7 @@ class ModelCheckpoint(pl.callbacks.ModelCheckpoint):
         return super().format_checkpoint_name(*args, **kwargs).replace("=", ":")
 
 
-class GPT2Module(pl.LightningModule):
+class XLMRobertaModule(pl.LightningModule):
     def __init__(
         self,
         tokenizer_dir: typing.Text,
@@ -56,14 +58,13 @@ class GPT2Module(pl.LightningModule):
         out = self.model(
             input_ids=batch.input_ids,
             attention_mask=batch.attention_mask,
-            token_type_ids=batch.role_ids,
             return_dict=True,
         )
 
         loss = torch.nn.functional.cross_entropy(
             out["logits"].view(-1, out["logits"].size(-1)),
             batch.labels.view(-1),
-            ignore_index=self.pad_id,
+            ignore_index=NO_LABEL,
         )
 
         return loss
@@ -87,28 +88,24 @@ class GPT2Module(pl.LightningModule):
 
         return optimizer
 
-    def decode(
-        self, texts: typing.List[typing.List[typing.Text]]
-    ) -> typing.List[typing.Text]:
-        return ["asd"] * len(texts)
 
-
-class GPT2DataModule(pl.LightningDataModule):
+class CONLLDataModule(pl.LightningDataModule):
     def __init__(self, config: omegaconf.DictConfig):
         super().__init__()
 
         self.config = config
         self.train = None
         self.valid = None
+        self.test = None
 
     def prepare_data(self) -> typing.NoReturn:
         output_dir = self.output_dir
 
         try:
-            transformers.GPT2Tokenizer.from_pretrained(output_dir)
+            transformers.XLMRobertaTokenizer.from_pretrained(output_dir)
 
         except OSError:
-            tokenizer = transformers.GPT2Tokenizer.from_pretrained(
+            tokenizer = transformers.XLMRobertaTokenizer.from_pretrained(
                 self.config.pretrained_name
             )
 
@@ -132,10 +129,11 @@ class GPT2DataModule(pl.LightningDataModule):
             )
 
     def setup(self, stage: typing.Optional[typing.Text] = None) -> typing.NoReturn:
-        tokenizer = transformers.GPT2Tokenizer.from_pretrained(self.output_dir)
+        tokenizer = transformers.XLMRobertaTokenizer.from_pretrained(self.output_dir)
 
-        self.train = GPT2Dataset(self.config, self.config.train.pattern, tokenizer)
-        self.valid = GPT2Dataset(self.config, self.config.valid.pattern, tokenizer)
+        self.train = TaggingDataset(self.config, tokenizer)
+        self.valid = TaggingDataset(self.config, tokenizer)
+        self.test = TaggingDataset(self.config, tokenizer)
 
     def train_dataloader(self) -> torch.utils.data.DataLoader:
         return torch.utils.data.DataLoader(self.train, pin_memory=True)
@@ -143,12 +141,11 @@ class GPT2DataModule(pl.LightningDataModule):
     def val_dataloader(self) -> torch.utils.data.DataLoader:
         return torch.utils.data.DataLoader(self.valid, pin_memory=True)
 
-    @property
-    def output_dir(self) -> typing.Text:
-        return get_output_dir(self.config)
+    def test_dataloader(self) -> torch.utils.data.DataLoader:
+        return torch.utils.data.DataLoader(self.test, pin_memory=True)
 
 
-class GPT2Dataset(torch.utils.data.IterableDataset):
+class TaggingDataset(torch.utils.data.IterableDataset):
     def __init__(
         self,
         config: omegaconf.DictConfig,
@@ -160,16 +157,9 @@ class GPT2Dataset(torch.utils.data.IterableDataset):
         self.tokenizer = tokenizer
 
     def __iter__(self):
-        data_pattern = os.path.join(get_output_dir(self.config), self.pattern)
+        tfrecord_pattern = os.path.join(get_output_dir(self.config), self.pattern)
 
-        dataset = tf.data.TFRecordDataset(glob.glob(data_pattern))
-
-        pad_id, bot_id, usr_id, sos_id = [
-            tf.constant(special_id, dtype=tf.int64)
-            for special_id in self.tokenizer.encode(SPECIAL_TOKENS)
-        ]
-
-        history_size = self.config.history_size
+        dataset = tf.data.TFRecordDataset(glob.glob(tfrecord_pattern))
 
         def preprocess_example(example):
             sequence_features = {"dialogue": tf.io.VarLenFeature(dtype=tf.int64)}
@@ -267,3 +257,4 @@ class GPT2Dataset(torch.utils.data.IterableDataset):
 
 def get_output_dir(config: omegaconf.DictConfig):
     return os.path.join(config.output_dir, config.data)
+
