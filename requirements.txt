@@ -1,4 +1,4 @@
-tensorflow-cpu==2.3
-git+https://github.com/PyTorchLightning/pytorch-lightning.git@cecad9f3efb87f34bfcb6d8b51c27ec8d2e82387
-git+https://github.com/huggingface/transformers@21d719238c68154798bff21581b82410f303e9ba
-git+https://github.com/facebookresearch/hydra@dfbebc34020ad3d4bf1ab061565408740e62eb22
+pytorch_lightning==0.9.1rc4
+hydra-core==1.0.3
+datasets==1.1.0
+transformers==3.3.1
