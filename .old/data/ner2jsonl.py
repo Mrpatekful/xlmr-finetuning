@@ -11,17 +11,14 @@ import argparse
 import json
 import itertools
 
-from os.path import (
-    join, dirname,
-    abspath, exists,
-    basename)
+from os.path import join, dirname, abspath, exists, basename
 
 
 def read_file(file_name):
     """
     Reads the lines of the provided file.
     """
-    with open(file_name, 'r') as fh:
+    with open(file_name, "r") as fh:
         for line in fh:
             yield line.strip()
 
@@ -47,53 +44,42 @@ def generate_jsonl(file_name, delimiter):
     """
     Converts conll formated file to jsonl.
     """
-    for tokens, labels in generate_sequences(
-            file_name, delimiter):
-        yield json.dumps({
-            'tokens': tokens,
-            'labels': labels
-        })
+    for tokens, labels in generate_sequences(file_name, delimiter):
+        yield json.dumps({"tokens": tokens, "labels": labels})
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--data_dir',
-        type=str,
-        required=True,
-        help='Path of the data directory.')
+        "--data_dir", type=str, required=True, help="Path of the data directory."
+    )
     parser.add_argument(
-        '--delimiter',
-        type=str,
-        default=' ',
-        help='Ner token delimiter.')
+        "--delimiter", type=str, default=" ", help="Ner token delimiter."
+    )
 
     args = parser.parse_args()
 
     splits = [
-        f for f in os.listdir(args.data_dir)
-        if basename(f)[:-4] in ['train', 'dev', 'test']
+        f
+        for f in os.listdir(args.data_dir)
+        if basename(f)[:-4] in ["train", "dev", "test"]
     ]
 
     for file_name in splits:
-        source_path = join(
-            args.data_dir, file_name)
+        source_path = join(args.data_dir, file_name)
 
         split_name = basename(file_name)[:-4]
 
         split_path = join(
-            args.data_dir,
-            ('valid' if split_name == 'dev' else split_name) \
-            + '.jsonl')
+            args.data_dir, ("valid" if split_name == "dev" else split_name) + ".jsonl"
+        )
 
-        lines = generate_jsonl(
-            source_path, args.delimiter)
+        lines = generate_jsonl(source_path, args.delimiter)
 
-        with open(split_path, 'w') as fh:
+        with open(split_path, "w") as fh:
             for line in lines:
-                fh.write(line + '\n')
+                fh.write(line + "\n")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

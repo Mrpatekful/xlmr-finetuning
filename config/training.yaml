@@ -1,10 +1,8 @@
 # @package _group_
 
-defaults:
-  - mode: sampling
-
 checkpoint_file: null
-tokenizer_dir: ${data.root}/tokenizer
+hparams_file: null
+labels_file: ${data.build_dir}/tags.txt
 
 seed: 42
 
@@ -15,16 +13,8 @@ trainer:
   precision: 32
 
 model:
-  pretrained_name: gpt2
   warmup_steps: 100
   lr: 1e-3
-
-generation:
-  # sets the number of previous utterances stored in history
-  history_size: 2
-  max_length: 1000
-  min_length: 3
-  temperature: 0.8
 
 data:
   # `name` is the predefined dataset which has to be set to empty if using custom dataset
@@ -42,9 +32,5 @@ data:
   build_dir: ${data.root}/${data.name}
   cache_dir: ${data.build_dir}
 
-  train:
-    data_pattern: ${data.build_dir}/train/*.jsonl
-
-  validation:
-    data_pattern: ${data.build_dir}/validation/*.jsonl
+  data_pattern: ${data.build_dir}/*.jsonl
 

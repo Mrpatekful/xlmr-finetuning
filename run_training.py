@@ -14,7 +14,7 @@ import warnings
 import typing
 import omegaconf
 import transformers
-import gpt2
+import xlm_roberta
 
 import pytorch_lightning as pl
 
@@ -23,33 +23,26 @@ transformers.logging.set_verbosity(transformers.logging.WARNING)
 pl._logger.handlers = []
 
 
-@hydra.main(config_name="config.yaml")
+@hydra.main(config_path="config", config_name="training")
 def main(config: omegaconf.OmegaConf):
-    config.output_dir = os.path.expanduser(config.output_dir)
     pl.trainer.seed_everything(config.seed)
 
     logging.info("\n" + config.pretty())
 
-    data_module = gpt2.GPT2DataModule(config)
+    tokenizer = transformers.XLMRobertaTokenizer.from_pretrained("xlm-roberta-base")
+
+    data_module = xlm_roberta.XLMRobertaDataModule(config.data, tokenizer)
     data_module.prepare_data()
 
     if config.checkpoint_file is not None:
         trainer = pl.Trainer(resume_from_checkpoint=config.checkpoint_file)
-        model = gpt2.GPT2Module.load_from_checkpoint(config.checkpoint_file)
+        model = xlm_roberta.XLMRobertaModule.load_from_checkpoint(config.checkpoint_file)
 
     else:
-        hparams = {
-            "tokenizer_dir": data_module.output_dir,
-            "pretrained_name": config.pretrained_name,
-            "history_size": config.history_size,
-            **config.hparams,
-        }
+        model = xlm_roberta.XLMRobertaModule(**hparams)
 
-        model = gpt2.GPT2Module(**hparams)
-
-        model_checkpoint = gpt2.ModelCheckpoint("{epoch}-{loss:.2f}", save_top_k=1)
+        model_checkpoint = xlm_roberta.ModelCheckpoint("{epoch}-{loss:.2f}", save_top_k=1)
         early_stopping = pl.callbacks.EarlyStopping()
-        gpu_stats = pl.callbacks.GPUStatsMonitor()
 
         trainer = pl.Trainer(
             gpus=config.gpus,

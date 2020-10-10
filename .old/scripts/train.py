@@ -28,22 +28,15 @@ from ignite.contrib.handlers import ProgressBar
 from ignite.metrics import RunningAverage
 from ignite.handlers import ModelCheckpoint
 
-from os.path import (
-    join, dirname,
-    basename, exists,
-    abspath, isdir)
+from os.path import join, dirname, basename, exists, abspath, isdir
 
-PROJECT_DIR = join(abspath(dirname(__file__)), '..')
+PROJECT_DIR = join(abspath(dirname(__file__)), "..")
 if PROJECT_DIR not in sys.path:
     sys.path.append(PROJECT_DIR)
 
-from src.model import (
-    create_model,
-    create_pretrained)
+from src.model import create_model, create_pretrained
 
-from src.data import (
-    create_dataset,
-    create_label2id)
+from src.data import create_dataset, create_label2id
 
 
 def set_random_seed(cfg):
@@ -69,7 +62,8 @@ def create_optimizer(cfg, model):
         model.parameters(),
         eps=cfg.adam_epsilon,
         lr=cfg.lr,
-        weight_decay=cfg.weight_decay)
+        weight_decay=cfg.weight_decay,
+    )
 
     return optimizer
 
@@ -78,8 +72,7 @@ def create_scheduler(cfg, optimizer, train_size):
     """
     Creates a scheduler with warmup and linear decay.
     """
-    total_steps = train_size // \
-        cfg.grad_accum_steps * cfg.max_epochs
+    total_steps = train_size // cfg.grad_accum_steps * cfg.max_epochs
 
     warmup_steps = total_steps * cfg.warmup_prop
 
@@ -87,39 +80,34 @@ def create_scheduler(cfg, optimizer, train_size):
         if current_step < warmup_steps:
             return current_step / max(1, warmup_steps)
 
-        return max(0, total_steps - current_step) / \
-            max(1, total_steps - warmup_steps)
+        return max(0, total_steps - current_step) / max(1, total_steps - warmup_steps)
 
-    return torch.optim.lr_scheduler.LambdaLR(
-        optimizer, lr_lambda)
+    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
 
 
-@hydra.main(config_path='config.yaml', strict=False)
+@hydra.main(config_path="config.yaml", strict=False)
 def main(cfg):
     """
     Performs training, validation and testing.
     """
-    assert isdir(cfg.data_dir), \
-        '`data_dir` must be a valid path.'
+    assert isdir(cfg.data_dir), "`data_dir` must be a valid path."
 
-    cfg.cuda = torch.cuda.is_available() \
-        and not cfg.no_cuda
+    cfg.cuda = torch.cuda.is_available() and not cfg.no_cuda
 
     cfg.model_dir = os.getcwd()
-    
-    # setting random seed for reproducibility
-    if cfg.seed: set_random_seed(cfg)
 
-    device = torch.device(
-        'cuda' if cfg.cuda else 'cpu')
+    # setting random seed for reproducibility
+    if cfg.seed:
+        set_random_seed(cfg)
+
+    device = torch.device("cuda" if cfg.cuda else "cpu")
 
     os.makedirs(cfg.model_dir, exist_ok=True)
 
     label2id = create_label2id(cfg)
     cfg.num_labels = len(label2id)
 
-    xlmr = create_pretrained(
-        cfg.model_type, cfg.force_download)
+    xlmr = create_pretrained(cfg.model_type, cfg.force_download)
 
     # creating dataset split loaders
     datasets = create_dataset(cfg, xlmr, label2id)
@@ -132,8 +120,7 @@ def main(cfg):
         cross entropy loss.
         """
         inputs, labels = [
-            torch.from_numpy(tensor).to(device).long() 
-            for tensor in batch
+            torch.from_numpy(tensor).to(device).long() for tensor in batch
         ]
 
         logits = model(inputs)
@@ -141,8 +128,7 @@ def main(cfg):
         logits = logits.view(-1, logits.size(-1))
         labels = labels.view(-1)
 
-        loss = torch.nn.functional.cross_entropy(
-            logits, labels, ignore_index=-1)
+        loss = torch.nn.functional.cross_entropy(logits, labels, ignore_index=-1)
 
         return loss
 
@@ -193,7 +179,8 @@ def main(cfg):
             with amp.scale_loss(loss, optimizer) as sc:
                 sc.backward()
 
-        else: loss.backward()
+        else:
+            loss.backward()
 
     def clip_grad_norm(max_norm):
         """
@@ -214,16 +201,16 @@ def main(cfg):
         cfg.model_type,
         n_saved=5,
         save_as_state_dict=True,
-        score_function=lambda e: -e.state.metrics['loss'])
+        score_function=lambda e: -e.state.metrics["loss"],
+    )
 
     last_ckpt_path = cfg.ckpt_path
 
     if last_ckpt_path is not None:
-        msg = 'Loading state from {}'
+        msg = "Loading state from {}"
         print(msg.format(basename(last_ckpt_path)))
 
-        last_state = torch.load(
-            last_ckpt_path, map_location=device)
+        last_state = torch.load(last_ckpt_path, map_location=device)
 
     model = create_model(xlmr, len(label2id), cfg)
     model = model.to(device)
@@ -232,49 +219,40 @@ def main(cfg):
 
     optimizer = create_optimizer(cfg, model)
 
-    scheduler = create_scheduler(
-        cfg, optimizer, len(train_dataset))
+    scheduler = create_scheduler(cfg, optimizer, len(train_dataset))
 
     # using apex if required and loading its state
     if cfg.fp16:
-        model, optimizer = amp.initialize(
-            model, optimizer, opt_level='O2')
+        model, optimizer = amp.initialize(model, optimizer, opt_level="O2")
 
-        if last_ckpt_path is not None and \
-                'amp' in last_state:
-            amp.load_state_dict(last_state['amp'])
+        if last_ckpt_path is not None and "amp" in last_state:
+            amp.load_state_dict(last_state["amp"])
 
     if last_ckpt_path is not None:
-        model.load_state_dict(last_state['model'])
-        optimizer.load_state_dict(last_state['optimizer'])
-        scheduler.load_state_dict(last_state['scheduler'])
+        model.load_state_dict(last_state["model"])
+        optimizer.load_state_dict(last_state["optimizer"])
+        scheduler.load_state_dict(last_state["scheduler"])
 
-    checkpoint_dict = {
-        'model': model,
-        'optimizer': optimizer,
-        'scheduler': scheduler
-    }
+    checkpoint_dict = {"model": model, "optimizer": optimizer, "scheduler": scheduler}
 
-    if cfg.fp16: checkpoint_dict['amp'] = amp
+    if cfg.fp16:
+        checkpoint_dict["amp"] = amp
 
-    validator.add_event_handler(
-        Events.COMPLETED,
-        checkpoint,
-        checkpoint_dict)
+    validator.add_event_handler(Events.COMPLETED, checkpoint, checkpoint_dict)
 
     metric = RunningAverage(output_transform=lambda x: x)
-    metric.attach(trainer, 'loss')
-    metric.attach(validator, 'loss')
+    metric.attach(trainer, "loss")
+    metric.attach(validator, "loss")
 
     pbar = ProgressBar()
-    pbar.attach(trainer, metric_names=['loss'])
+    pbar.attach(trainer, metric_names=["loss"])
 
-    history_path = join(cfg.model_dir, 'history.json')
+    history_path = join(cfg.model_dir, "history.json")
     history = collections.defaultdict(list)
-    headers = ['epoch', 'train_loss', 'valid_loss']
+    headers = ["epoch", "train_loss", "valid_loss"]
 
     if exists(history_path):
-        with open(history_path, 'r') as fh:
+        with open(history_path, "r") as fh:
             history = json.load(fh)
 
     def record_history(results):
@@ -284,7 +262,7 @@ def main(cfg):
         for header in headers:
             history[header].append(results[header])
 
-        with open(history_path, 'w') as fh:
+        with open(history_path, "w") as fh:
             json.dump(history, fh)
 
     @trainer.on(Events.EPOCH_COMPLETED)
@@ -294,16 +272,18 @@ def main(cfg):
         """
         validator.run(valid_dataset)
 
-        record_history({
-            'epoch': engine.state.epoch,
-            'train_loss': engine.state.metrics['loss'],
-            'valid_loss': validator.state.metrics['loss']
-        })
+        record_history(
+            {
+                "epoch": engine.state.epoch,
+                "train_loss": engine.state.metrics["loss"],
+                "valid_loss": validator.state.metrics["loss"],
+            }
+        )
 
         data = list(zip(*[history[h] for h in headers]))
-        table = tabulate(data, headers, floatfmt='.3f')
+        table = tabulate(data, headers, floatfmt=".3f")
 
-        print(table.split('\n')[-1])
+        print(table.split("\n")[-1])
 
     data = list(zip(*[history[h] for h in headers]))
 
@@ -311,14 +291,13 @@ def main(cfg):
     print(cfg.pretty())
 
     print()
-    print('***** Running training *****')
+    print("***** Running training *****")
 
     print()
-    print(tabulate(data, headers, floatfmt='.3f'))
+    print(tabulate(data, headers, floatfmt=".3f"))
 
     trainer.run(train_dataset, cfg.max_epochs)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

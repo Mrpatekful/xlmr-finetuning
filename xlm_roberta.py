@@ -1,6 +1,6 @@
 """
 @author:    Patrik Purgai
-@copyright: Copyright 2020, dialoue-generation
+@copyright: Copyright 2020, xlmr-finetuning
 @license:   MIT
 @email:     purgai.patrik@gmail.com
 @date:      2020.05.30.
@@ -15,11 +15,16 @@ import transformers
 import itertools
 import datasets
 import functools
+import re
 
 import pytorch_lightning as pl
 import numpy as np
 
 PROJECT_DIR = os.path.join(os.path.abspath(os.path.dirname(__file__)), "..", "..")
+
+SPLITS = TRAIN, VALID = datasets.Split.TRAIN, datasets.Split.VALIDATION
+
+BILUO = BEGIN, IN, LAST, UNIT, OUT = "B", "I", "L", "U", "O"
 
 
 # custom modelcheckpoint is required to overwrite the formatting in the file name
@@ -106,20 +111,23 @@ class XLMRobertaDataModule(pl.LightningDataModule):
         self.tokenizer = tokenizer
         self.dataset = None
 
-        special_tokens = [PAD, BOT, USR]
-        self.specials = self.tokenizer.convert_tokens_to_ids(special_tokens)
-
     def prepare_data(self):
-        scripts_dir = os.path.join(PROJECT_DIR, "scripts")
-
-        if self.config.name is not None:
+        def run_script(name):
+            scripts_dir = os.path.join(PROJECT_DIR, "scripts")
             script = os.path.join(scripts_dir, f"download_{self.config.name}.py")
-            params = f"--output_dir {self.config.build_dir} --field {self.config.field}"
+            params = [
+                f"--output_dir {self.config.build_dir}",
+                f"--text_field {self.config.text_field}",
+                f"--label_field {self.config.label_field}",
+            ]
 
             if self.config.rebuild:
-                params += " --force"
+                params.append("--force")
 
-            os.system(f"python {script} {params}")
+            os.system(f"python {script} {' '.join(params)}")
+
+        if self.config.name is not None:
+            run_script(self.config.name)
 
         # instantiating dataset for building the cache file on a single worker
         build_dataset(self.tokenizer, self.config)
@@ -144,54 +152,133 @@ def build_dataloader(dataset, config, specials, shuffle=True):
     )
 
 
-def build_split(examples, tokenizer, max_tokens, cache_dir, split_name, field):
-    flat_field = f"flat_{field}"
+def build_split(
+    examples, tokenizer, cache_dir, split_name, tokens_field, labels_field, labels
+):
+    class_label = datasets.ClassLabel(names=labels)
 
     examples = examples.map(
-        functools.partial(flatten_dialogue, input_field=field, output_field=flat_field),
-        remove_columns=examples.column_names,
-        cache_file_name=os.path.join(cache_dir, f"{split_name}.raw.cache"),
-    )
-
-    examples = examples.map(
-        lambda example: tokenizer(
-            example[flat_field],
-            return_tensors="np",
-            max_length=max_tokens,
-            truncation=True,
-        ),
-        remove_columns=examples.column_names,
+        lambda example: build_example(example, tokenizer, tokens_field, labels_field),
         cache_file_name=os.path.join(cache_dir, f"{split_name}.examples.cache"),
+        features=datasets.Features({
+            labels_field: datasets.Sequence(class_label),
+            tokens_field: datasets.Sequence(datasets.Value("int64")),
+        }),
     )
 
-    examples.set_format(type="np", columns=COLUMNS)
+    examples.set_format(type="np", columns=examples.columns)
 
     return examples
 
 
 def build_dataset(tokenizer, config):
-    data_files = {
-        str(split): glob.glob(config.get(str(split)).data_pattern) for split in SPLITS
-    }
+        glob.glob(config.get(str(split)).data_pattern)
 
     dataset = datasets.load_dataset("json", data_files=data_files)
+    labels = build_labels(dataset, config)
 
-    # splits contains a dictionary of dictionary of datasets with 2 keys `examples`
-    # contains the dataset with the inputs and `lengths` contains the size of each
-    # example which is used by the batch sampler
     splits = {
         split: build_split(
             examples=examples,
             tokenizer=tokenizer,
-            max_tokens=config.max_tokens,
             cache_dir=config.cache_dir,
             split_name=split,
-            field=config.field,
+            tokens_field=config.tokens_field,
+            labels_field=config.labels_field,
+            labels=labels,
         )
         for split, examples in dataset.items()
     }
 
     return splits
+
+
+def build_labels(dataset, config):
+    if os.path.exists(config.labels_file):
+        with open(config.labels_file) as fh:
+            return {label: idx for idx, label in enumerate(fh.read().split())}
+    
+    tags = set()
+
+    dataset.map(
+        lambda example: tags.update(
+            [get_tag(label) for label in example[config.labels_field]]
+        )
+    )
+
+    tags.remove(OUT)
+
+    labels = [f"{prefix}-{tag}" for prefix, tag in itertools.product(BILUO[:-1], tags)]
+    labels.append(OUT)
+
+    with open(config.labels_file, "w") as fh:
+        fh.write("\n".join(labels))
+
+    return labels
+    
+
+def build_example(example, tokenizer, tokens_field, labels_field, max_tokens):
+    sub_token_ids, num_sub_tokens = tokenize(
+        example[tokens_field], tokenizer, max_tokens
+    )
+
+    extended_labels = extend_labels(example[labels_field], num_sub_tokens)
+
+    return {tokens_field: sub_token_ids, labels_field: extended_labels}
+
+
+def tokenize(tokens, tokenizer, max_tokens):
+    sub_token_ids, num_sub_tokens = [], []
+
+    for token in tokens:
+        token_ids = tokenizer(token, max_tokens=max_tokens)["input_ids"]
+        sub_token_ids.extend(token_ids)
+        num_sub_tokens.append(len(token_ids))
+
+    return np.array(sub_token_ids, dtype=np.int64), num_sub_tokens
+
+
+def extend_labels(labels, num_sub_tokens):
+    def generate_labels():
+        for label, num in zip(labels, num_sub_tokens):
+            if num == 1:
+                yield [label]
+
+            elif label == OUT:
+                yield [OUT] * num
+
+            else:
+                tag = get_tag(label)
+                prefix = get_prefix(label)
+
+                if prefix == BEGIN:
+                    yield [f"{BEGIN}-{tag}"] + build_inside_tags(tag, num - 1)
+
+                elif prefix == IN:
+                    yield build_inside_tags(tag, num)
+
+                elif prefix == UNIT:
+                    inside_tags = build_inside_tags(tag, num - 2)
+                    yield [f"{BEGIN}-{tag}"] + inside_tags + [f"{LAST}-{tag}"]
+
+                else:
+                    yield build_inside_tags(tag, num - 1) + [f"{LAST}-{tag}"]
+
+    extended_labels = itertools.chain(*generate_labels())
+
+    return extended_labels
+
+
+def get_tag(label):
+    return label.split("-")[-1]
+
+
+def get_prefix(label):
+    return label.split("-")[0]
+
+
+def build_inside_tags(tag, num):
+    return ["f{IN}-{tag}" for _ in range(num)]
 
 
 def collate(batch, specials):

@@ -15,16 +15,13 @@ import functools
 import itertools
 import collections
 
-os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 import tensorflow as tf
 
 from tqdm import tqdm
 
-from os.path import (
-    join, dirname,
-    exists, basename,
-    splitext, abspath)
+from os.path import join, dirname, exists, basename, splitext, abspath
 
 
 IGNORE_ID = -1
@@ -43,15 +40,14 @@ def int64_feature(value):
     """
     Creates an int64 feature from integers.
     """
-    return tf.train.Feature(
-        int64_list=tf.train.Int64List(value=value))
+    return tf.train.Feature(int64_list=tf.train.Int64List(value=value))
 
 
 def read_file(file_name):
     """
     Reads lines from a file.
     """
-    with open(file_name, 'r') as fh:
+    with open(file_name, "r") as fh:
         for line in fh:
             yield line.strip()
 
@@ -68,6 +64,7 @@ def transform_split(cfg, file_name, xlmr, label2id):
     """
     Transforms the provided split.
     """
+
     def is_not_none(e):
         """
         Helper function to filter nulls.
@@ -78,31 +75,21 @@ def transform_split(cfg, file_name, xlmr, label2id):
         """
         Generates groups for serialization.
         """
-        groups = group_elements(
-            generate_examples(file_name),
-            cfg.tfrecord_size)
+        groups = group_elements(generate_examples(file_name), cfg.tfrecord_size)
 
-        # pairing groups to unique numbers and 
+        # pairing groups to unique numbers and
         # filtering nulls from zip_longest
-        groups = (
-            list(filter(is_not_none, group))
-            for group in groups
-        )
+        groups = (list(filter(is_not_none, group)) for group in groups)
 
         yield from groups
 
     split_name = splitext(basename(file_name))[0]
 
-    tfrecord_name = join(
-        cfg.data_dir,
-        split_name + '.{}.tfrecord')
+    tfrecord_name = join(cfg.data_dir, split_name + ".{}.tfrecord")
 
     tfrecord_name = abspath(tfrecord_name)
 
-    encode_fn = functools.partial(
-         encode_example,
-         xlmr=xlmr,
-         label2id=label2id)
+    encode_fn = functools.partial(encode_example, xlmr=xlmr, label2id=label2id)
 
     def generate_results():
         """
@@ -115,9 +102,10 @@ def transform_split(cfg, file_name, xlmr, label2id):
             yield write_tfrecord(
                 examples=examples,
                 encode_fn=encode_fn,
-                file_name=tfrecord_name.format(idx))
+                file_name=tfrecord_name.format(idx),
+            )
 
-    # generates split sizes and filenames 
+    # generates split sizes and filenames
     # of the tfrecords
     tfrecord_paths, sizes = zip(*generate_results())
 
@@ -139,8 +127,7 @@ def encode_example(tokens, labels, xlmr, label2id):
         padding = [IGNORE_ID] * (len(ids) - 1)
         label_ids.extend([label2id[label]] + padding)
 
-    input_ids = [xlmr.task.dictionary.bos()] + \
-        input_ids + [xlmr.task.dictionary.eos()]
+    input_ids = [xlmr.task.dictionary.bos()] + input_ids + [xlmr.task.dictionary.eos()]
 
     label_ids = [IGNORE_ID] + label_ids + [IGNORE_ID]
 
@@ -159,10 +146,11 @@ def decode_example(input_ids, label_ids, xlmr, id2label):
         of ids to text.
         """
         text = xlmr.decode(torch.tensor(token).long())
-        return text.replace(' ', '')
+        return text.replace(" ", "")
 
     for token_id in input_ids:
-        if token_id == xlmr.task.dictionary.pad(): break
+        if token_id == xlmr.task.dictionary.pad():
+            break
 
         token_ids.append(token_id)
 
@@ -197,16 +185,16 @@ def write_tfrecord(examples, encode_fn, file_name):
     Converts the provided examples to ids and writes
     them to tfrecords.
     """
+
     def create_feature(example):
         """
         Creates a feature list from a document.
         """
-        input_ids, label_ids = encode_fn(
-            example['tokens'], example['labels'])
+        input_ids, label_ids = encode_fn(example["tokens"], example["labels"])
 
         features = {
-            'input_ids': int64_feature(input_ids),
-            'label_ids': int64_feature(label_ids)
+            "input_ids": int64_feature(input_ids),
+            "label_ids": int64_feature(label_ids),
         }
 
         return features
@@ -214,16 +202,15 @@ def write_tfrecord(examples, encode_fn, file_name):
     with tf.io.TFRecordWriter(file_name) as writer:
         for example in examples:
             example = tf.train.Example(
-                features=tf.train.Features(
-                    feature=create_feature(example)))
+                features=tf.train.Features(feature=create_feature(example))
+            )
 
             writer.write(example.SerializeToString())
 
     return file_name, len(examples)
 
 
-def create_tfrecord_loader(
-        cfg, tfrecord_paths, size, pad_id, shuffle=False):
+def create_tfrecord_loader(cfg, tfrecord_paths, size, pad_id, shuffle=False):
     """
     Creates a generator that iterates through the
     dataset.
@@ -236,56 +223,49 @@ def create_tfrecord_loader(
         Parses a dialog from the serialized datafile.
         """
         features = {
-            'input_ids': tf.io.VarLenFeature(tf.int64),
-            'label_ids': tf.io.VarLenFeature(tf.int64)
+            "input_ids": tf.io.VarLenFeature(tf.int64),
+            "label_ids": tf.io.VarLenFeature(tf.int64),
         }
 
-        parsed_example = \
-            tf.io.parse_single_example(
-                example, features=features)
+        parsed_example = tf.io.parse_single_example(example, features=features)
 
-        return {
-            k: tf.sparse.to_dense(v) for k, v in
-            parsed_example.items()
-        }
+        return {k: tf.sparse.to_dense(v) for k, v in parsed_example.items()}
 
     def compute_length(example):
         """
         Computes the length of the example.
         """
-        return tf.size(example['input_ids'])
+        return tf.size(example["input_ids"])
 
     def prepare_inputs(example):
         """
         Creates the attention mask tensor.
         """
-        return example['input_ids'], example['label_ids']
+        return example["input_ids"], example["label_ids"]
 
     dataset = tf.data.TFRecordDataset(tfrecord_paths)
 
-    if shuffle: dataset = dataset.shuffle(5000)
+    if shuffle:
+        dataset = dataset.shuffle(5000)
 
     dataset = dataset.map(
-        parse_example,
-        num_parallel_calls=tf.data.experimental.AUTOTUNE)    
+        parse_example, num_parallel_calls=tf.data.experimental.AUTOTUNE
+    )
 
     dataset = dataset.padded_batch(
         batch_size=cfg.batch_size,
         padded_shapes={
-            'input_ids': tf.TensorShape([None]),
-            'label_ids': tf.TensorShape([None])
+            "input_ids": tf.TensorShape([None]),
+            "label_ids": tf.TensorShape([None]),
         },
-        padding_values={
-            'input_ids': pad_id,
-            'label_ids': ignore_id
-        })
+        padding_values={"input_ids": pad_id, "label_ids": ignore_id},
+    )
 
     dataset = dataset.map(
-        prepare_inputs,
-        num_parallel_calls=tf.data.experimental.AUTOTUNE)
+        prepare_inputs, num_parallel_calls=tf.data.experimental.AUTOTUNE
+    )
 
-    dataset = dataset.prefetch(
-        tf.data.experimental.AUTOTUNE)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
     return TensorflowDataset(dataset, size, cfg)
 
@@ -306,8 +286,7 @@ class TensorflowDataset:
         return self.size
 
 
-def create_jsonl_loader(
-        batch_size, data_path, encode_fn, pad_id):
+def create_jsonl_loader(batch_size, data_path, encode_fn, pad_id):
     """
     Creates a loader that fetches examples directly
     from a jsonl file.
@@ -320,44 +299,33 @@ def create_jsonl_loader(
         Generator for converted examples.
         """
         for example in generate_examples(data_path):
-            input_ids, label_ids = encode_fn(
-                example['tokens'], example['labels'])
+            input_ids, label_ids = encode_fn(example["tokens"], example["labels"])
 
-            yield {
-                'input_ids': input_ids,
-                'label_ids': label_ids
-            }
+            yield {"input_ids": input_ids, "label_ids": label_ids}
 
     def prepare_inputs(example):
         """
         Creates the attention mask tensor.
         """
-        return example['input_ids'], example['label_ids']
+        return example["input_ids"], example["label_ids"]
 
     dataset = tf.data.Dataset.from_generator(
         generate_converted,
-        output_types={
-            'input_ids': tf.int64,
-            'label_ids': tf.int64
-        },
+        output_types={"input_ids": tf.int64, "label_ids": tf.int64},
         output_shapes={
-            'input_ids': tf.TensorShape([None]),
-            'label_ids': tf.TensorShape([None])
-        })
-
-    dataset = (
-        dataset.padded_batch(
-            batch_size=batch_size,
-            padded_shapes={
-                'input_ids': tf.TensorShape([None]),
-                'label_ids': tf.TensorShape([None])
-            },
-            padding_values={
-                'input_ids': pad_id,
-                'label_ids': ignore_id
-            })
-        .map(prepare_inputs)
+            "input_ids": tf.TensorShape([None]),
+            "label_ids": tf.TensorShape([None]),
+        },
     )
+
+    dataset = dataset.padded_batch(
+        batch_size=batch_size,
+        padded_shapes={
+            "input_ids": tf.TensorShape([None]),
+            "label_ids": tf.TensorShape([None]),
+        },
+        padding_values={"input_ids": pad_id, "label_ids": ignore_id},
+    ).map(prepare_inputs)
 
     return dataset
 
@@ -370,40 +338,37 @@ def generate_labels(cfg, split_files):
         file_name = join(cfg.data_dir, file_name)
 
         for example in generate_examples(file_name):
-            yield from example['labels']
+            yield from example["labels"]
 
 
 def create_label2id(cfg):
     """
     If label2id doesn't exist then it is created.
     """
-    label2id_model_path = join(
-        cfg.model_dir, 'labels.json')
+    label2id_model_path = join(cfg.model_dir, "labels.json")
 
     # label2id is stored in the data dir and model dir
     if not exists(label2id_model_path):
-        label2id_data_path = join(
-            cfg.data_dir, 'labels.json')
+        label2id_data_path = join(cfg.data_dir, "labels.json")
 
         if not exists(label2id_data_path):
             label2id = {}
 
-            for label in generate_labels(
-                    cfg, ['train.jsonl', 'valid.jsonl']):
+            for label in generate_labels(cfg, ["train.jsonl", "valid.jsonl"]):
                 if label not in label2id:
                     label2id[label] = len(label2id)
 
-            with open(label2id_data_path, 'w') as fh:
+            with open(label2id_data_path, "w") as fh:
                 json.dump(label2id, fh)
 
         else:
-            with open(label2id_data_path, 'r') as fh:
+            with open(label2id_data_path, "r") as fh:
                 label2id = json.load(fh)
 
-        with open(label2id_model_path, 'w') as fh:
+        with open(label2id_model_path, "w") as fh:
             json.dump(label2id, fh)
 
-    with open(label2id_model_path, 'r') as fh:
+    with open(label2id_model_path, "r") as fh:
         label2id = json.load(fh)
 
     return label2id
@@ -413,61 +378,44 @@ def create_dataset(cfg, xlmr, label2id):
     """
     Transforms the dataset and provides iterators to it.
     """
-    assert exists(cfg.data_dir), \
-        '{} does not exist.'.format(cfg.data_dir)
+    assert exists(cfg.data_dir), "{} does not exist.".format(cfg.data_dir)
 
-    metadata_path = join(
-        cfg.data_dir, 'metadata.json')
+    metadata_path = join(cfg.data_dir, "metadata.json")
 
     if not exists(metadata_path):
         # if dataset does not exist then create it
         # by tokenizing the raw files
 
-        splits = [
-            join(cfg.data_dir, 'train.jsonl'),
-            join(cfg.data_dir, 'valid.jsonl')
-        ]
+        splits = [join(cfg.data_dir, "train.jsonl"), join(cfg.data_dir, "valid.jsonl")]
 
-        splits = tqdm(
-            splits, 
-            desc='Converting to tfrecord',
-            leave=False
-        )
+        splits = tqdm(splits, desc="Converting to tfrecord", leave=False)
 
         train, valid = [
-            transform_split(
-                cfg=cfg,
-                file_name=file_name,
-                xlmr=xlmr,
-                label2id=label2id)
-            for file_name in splits]
+            transform_split(cfg=cfg, file_name=file_name, xlmr=xlmr, label2id=label2id)
+            for file_name in splits
+        ]
 
         train_tfrecords, train_size = train
         valid_tfrecords, valid_size = valid
 
-        print('Saving metadata to {}'.format(
-            metadata_path))
+        print("Saving metadata to {}".format(metadata_path))
 
         # save the location of the files in a metadata
         # json object and delete the file in case of
         # interrupt so it wont be left in corrupted state
-        with open(metadata_path, 'w') as fh:
+        with open(metadata_path, "w") as fh:
             try:
-                json.dump({
-                    'train': train,
-                    'valid': valid
-                }, fh)
+                json.dump({"train": train, "valid": valid}, fh)
             except KeyboardInterrupt:
                 shutil.rmtree(metadata_path)
 
-    print('Loading metadata from {}'.format(
-        metadata_path))
+    print("Loading metadata from {}".format(metadata_path))
 
-    with open(metadata_path, 'r') as fh:
+    with open(metadata_path, "r") as fh:
         metadata = json.load(fh)
 
-    train_tfrecords, train_size = metadata['train']
-    valid_tfrecords, valid_size = metadata['valid']
+    train_tfrecords, train_size = metadata["train"]
+    valid_tfrecords, valid_size = metadata["valid"]
 
     pad_id = xlmr.task.dictionary.pad()
 
@@ -476,13 +424,11 @@ def create_dataset(cfg, xlmr, label2id):
         tfrecord_paths=train_tfrecords,
         size=train_size,
         pad_id=pad_id,
-        shuffle=True)
+        shuffle=True,
+    )
 
     valid_dataset = create_tfrecord_loader(
-        cfg=cfg,
-        tfrecord_paths=valid_tfrecords,
-        size=valid_size,
-        pad_id=pad_id)
+        cfg=cfg, tfrecord_paths=valid_tfrecords, size=valid_size, pad_id=pad_id
+    )
 
     return train_dataset, valid_dataset
-

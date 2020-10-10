@@ -37,12 +37,6 @@ def download(file_name, url):
                     fh.write(chunk)
 
 
-def group_elements(iterable, group_size):
-    groups = [iter(iterable)] * group_size
-
-    return itertools.zip_longest(*groups)
-
-
 def read_file(file_name):
     with open(file_name, "r", encoding="latin-1") as fh:
         for line in fh:
@@ -68,137 +62,46 @@ def generate_sequences(file_name):
 
 def generate_jsonl(file_name):
     for tokens, labels in generate_sequences(file_name):
-        yield {"tokens": tokens, "labels": fix_labels(labels)}
-
-
-def fix_labels(labels):
-    def fix_label(idx, curr):
-        prev = "" if idx - 1 < 0 else labels[idx - 1]
-
-        prev_splits = prev.split("-")
-        curr_splits = curr.split("-")
-
-        if len(curr_splits) > 1:
-            curr_prefix, curr_postfix = curr_splits
-
-            if len(prev_splits) > 1:
-                prev_prefix, prev_postfix = prev_splits
-
-                if curr_postfix != prev_postfix:
-                    return curr.replace("I-", "B-")
-
-                else:
-                    return curr
-
-            else:
-                return curr.replace("I-", "B-")
-
-        return curr
-
-    return [fix_label(i, l) for i, l in enumerate(labels)]
+        yield {"tokens": tokens, "labels": labels}
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--data_dir",
+        "--output_dir",
         type=str,
         default=os.path.join(DATA_DIR, "szegedner"),
         help="Path of the data directory.",
     )
     parser.add_argument(
-        "--force_download",
+        "--force",
         action="store_true",
-        help="Download dataset even if it exists.",
-    )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=0,
-        help="Value of the seed for reproducibility.",
-    )
-    parser.add_argument(
-        "--num_folds",
-        type=int,
-        default=9,
-        help="Number of folds for the cross validation.",
-    )
-    parser.add_argument(
-        "--min_class_example",
-        type=int,
-        default=10,
-        help="Minimum number of example in a fold for a class.",
-    )
-    parser.add_argument(
-        "--valid_idx",
-        type=int,
-        default=1,
-        help="Index of the validation split in from the folds.",
+        help="Download and prepare the dataset even if it exists.",
     )
 
     args = parser.parse_args()
 
-    assert args.valid_idx < args.num_folds
+    os.makedirs(args.output_dir, exist_ok=True)
 
-    os.makedirs(args.data_dir, exist_ok=True)
+    output_path = os.path.join(args.output_dir, "data.jsonl")
 
-    extract_path = os.path.join(args.data_dir, FILE_NAME)
-    download_path = extract_path + ".zip"
+    if not os.path.exists(output_path) or args.force_download:
+        with tempfile.TemporaryDirectory(dir=args.output_dir) as td:
+            download_path = os.path.join(td, FILE_NAME + ".zip")
 
-    if not os.path.exists(extract_path) or args.force_download:
-        if os.path.exists(extract_path):
-            shutil.rmtree(extract_path)
-
-        if not os.path.exists(download_path) or args.force_download:
             download(download_path, URL + FILE_NAME + ".zip")
 
-        with zipfile.ZipFile(download_path) as zf:
-            zf.extractall(path=extract_path)
+            with zipfile.ZipFile(download_path) as zf:
+                zf.extractall(path=td)
 
-    raw_data_path = os.path.join(args.data_dir, FILE_NAME, "hun_ner_corpus.txt")
+            raw_data_path = os.path.join(td, "hun_ner_corpus.txt")
 
-    train_path = os.path.join(args.data_dir, "train.jsonl")
-    valid_path = os.path.join(args.data_dir, "valid.jsonl")
+            labels = collections.Counter()
 
-    def write_fold(fold, file_handle, labels):
-        for example in fold:
-            if example is not None and example.strip() != "":
-                labels.update(json.loads(example)["labels"])
-                file_handle.write(example + "\n")
-
-    train_labels = collections.Counter()
-    valid_labels = collections.Counter()
-
-    with tempfile.TemporaryFile("w+", dir=args.data_dir) as fh:
-        for json_example in generate_jsonl(raw_data_path):
-            fh.write(json.dumps(json_example) + "\n")
-
-        fh.flush()
-        fh.seek(0)
-
-        lines = fh.read().split("\n")
-        random.shuffle(lines)
-
-        # computing the fold size note that the last
-        # fold might be slightly smaller
-        fold_size = math.ceil(len(lines) / args.num_folds)
-        folds = group_elements(lines, fold_size)
-
-        with open(train_path, "w") as train_file:
-            for idx, fold in enumerate(folds):
-                if idx == args.valid_idx:
-                    with open(valid_path, "w") as valid_file:
-                        write_fold(fold, valid_file, valid_labels)
-
-                else:
-                    write_fold(fold, train_file, train_labels)
-
-    labels = {*train_labels, *valid_labels}
-
-    assert min(train_labels.get(l, 0) for l in labels) > args.min_class_example
-    assert min(valid_labels.get(l, 0) for l in labels) > args.min_class_example
+            with open(output_path, "w") as fh:
+                for json_example in generate_jsonl(raw_data_path):
+                    fh.write(json.dumps(json_example) + "\n")
 
 
 if __name__ == "__main__":
     main()
-

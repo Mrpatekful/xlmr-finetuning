@@ -5,4 +5,3 @@
 @email:     purgai.patrik@gmail.com
 @date:      2019.09.30.
 """
-
