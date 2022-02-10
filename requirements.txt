@@ -1,5 +1,5 @@
 git+https://github.com/pytorch/ignite.git@7b71e5ba963297f003a28da8ea3fec27a9e4b44b
-tensorflow==2.1
+tensorflow==2.5.3
 tabulate
 tqdm
 sentencepiece
