@@ -3,7 +3,7 @@ tensorflow==2.1
 tabulate
 tqdm
 sentencepiece
-onnx==1.5
+onnx==1.13.0
 onnxruntime
 regex
 cython
